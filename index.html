@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LVGL Font Editor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #1e1e1e;
+      color: #ccc;
+    }
+    #toolbar {
+      display: flex;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #2d2d2d;
+      border-bottom: 1px solid #444;
+      align-items: center;
+    }
+    #toolbar button {
+      padding: 4px 12px;
+      background: #3c3c3c;
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    #toolbar button:hover { background: #4c4c4c; }
+    #toolbar button:disabled { opacity: 0.4; cursor: default; }
+    #toolbar button.active { background: #0078d4; border-color: #0078d4; color: #fff; }
+    #toolbar .separator { width: 1px; height: 24px; background: #555; }
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    #glyph-list {
+      width: 220px;
+      overflow-y: auto;
+      background: #252526;
+      border-right: 1px solid #444;
+      padding: 4px;
+    }
+    #glyph-list .glyph-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    #glyph-list .glyph-item:hover { background: #2a2d2e; }
+    #glyph-list .glyph-item.selected { background: #094771; }
+    #glyph-list .glyph-char { font-size: 16px; width: 20px; text-align: center; }
+    #glyph-list .glyph-code { color: #888; }
+    #editor-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+      padding: 20px;
+    }
+    #glyph-canvas {
+      cursor: crosshair;
+      image-rendering: pixelated;
+    }
+    #status-bar {
+      padding: 4px 12px;
+      background: #007acc;
+      color: #fff;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="toolbar"></div>
+  <div id="main">
+    <div id="glyph-list"></div>
+    <div id="editor-area">
+      <canvas id="glyph-canvas"></canvas>
+    </div>
+  </div>
+  <div id="status-bar">No file loaded</div>
+  <script type="module" src="/src/index.ts"></script>
+</body>
+</html>
