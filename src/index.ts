@@ -115,6 +115,7 @@ class App {
       this.glyphList.setSelected(0);
       this.renderCurrentGlyph();
       this.updateStatus();
+      this.updateToolbar();
       this.fileName = this.font.name + '.c';
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
