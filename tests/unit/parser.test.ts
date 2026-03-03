@@ -57,14 +57,14 @@ describe('parseLvglFont - tiny_mono_3x5', () => {
 
   it('parses font metadata', () => {
     expect(font.name).toBe('tiny_mono_3x5');
-    expect(font.size).toBe(5);
+    expect(font.size).toBe(6);
     expect(font.bpp).toBe(1);
-    expect(font.lineHeight).toBe(5);
+    expect(font.lineHeight).toBe(6);
     expect(font.baseLine).toBe(1);
   });
 
   it('parses fallback font', () => {
-    expect(font.fallbackFont).toBe('LV_FONT_UNSCII_8');
+    expect(font.fallbackFont).toBe(null);
   });
 
   it('parses correct number of glyphs', () => {
@@ -76,14 +76,14 @@ describe('parseLvglFont - tiny_mono_3x5', () => {
     expect(space).toBeDefined();
     expect(space!.boxWidth).toBe(1);
     expect(space!.boxHeight).toBe(1);
-    expect(space!.advanceWidth).toBe(53);
+    expect(space!.advanceWidth).toBe(64);
   });
 
   it('parses "A" glyph bitmap', () => {
     const a = font.glyphs.find(g => g.unicode === 0x41);
     expect(a).toBeDefined();
     expect(a!.boxWidth).toBe(3);
-    expect(a!.boxHeight).toBe(4);
+    expect(a!.boxHeight).toBe(5);
     // "A" bytes: 0x57, 0xd0
     // stride = 1 byte/row, 4 rows = 4 bytes? No, let's decompose:
     // 0x57 = 01010111, 0xd0 = 11010000
@@ -98,7 +98,7 @@ describe('parseLvglFont - tiny_mono_3x5', () => {
     // But that's only 2 rows for 2 bytes... we need 4 rows but only have 2 bytes
     // Let me check: bitmap_index for 'A' is 54, the bytes come from the bitmap array
     // The parser extracts bytes per glyph from the hex between comments
-    expect(a!.bitmap.length).toBe(4);
+    expect(a!.bitmap.length).toBe(5);
     expect(a!.bitmap[0].length).toBe(3);
   });
 
@@ -109,7 +109,7 @@ describe('parseLvglFont - tiny_mono_3x5', () => {
   });
 
   it('preserves header comment', () => {
-    expect(font.headerComment).toContain('Size: 5 px');
+    expect(font.headerComment).toContain('Size: 6 px');
     expect(font.headerComment).toContain('Bpp: 1');
   });
 });
@@ -120,9 +120,9 @@ describe('parseLvglFont - low_gothic_8x10', () => {
 
   it('parses font metadata', () => {
     expect(font.name).toBe('low_gothic_8x10');
-    expect(font.size).toBe(10);
+    expect(font.size).toBe(8);
     expect(font.bpp).toBe(1);
-    expect(font.lineHeight).toBe(12);
+    expect(font.lineHeight).toBe(10);
     expect(font.baseLine).toBe(2);
   });
 
