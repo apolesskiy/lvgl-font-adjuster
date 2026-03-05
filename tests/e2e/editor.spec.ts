@@ -344,4 +344,105 @@ test.describe('LVGL Font Editor E2E', () => {
     const { rmSync } = await import('fs');
     rmSync(tmpDir, { recursive: true });
   });
+
+  test('glyph resize buttons are visible and functional', async ({ page }) => {
+    await loadFontFile(page, tinyMonoPath);
+    await page.waitForTimeout(200);
+
+    // Resize buttons should be enabled after loading a file
+    const wPlusBtn = page.getByRole('button', { name: 'W+', exact: true });
+    const wMinusBtn = page.getByRole('button', { name: 'W\u2212', exact: true });
+    const hPlusBtn = page.getByRole('button', { name: 'H+', exact: true });
+    const hMinusBtn = page.getByRole('button', { name: 'H\u2212', exact: true });
+
+    await expect(wPlusBtn).toBeEnabled();
+    await expect(wMinusBtn).toBeEnabled();
+    await expect(hPlusBtn).toBeEnabled();
+    await expect(hMinusBtn).toBeEnabled();
+
+    // Get initial status to read glyph dimensions
+    const statusBefore = await page.locator('#status-bar').textContent();
+    expect(statusBefore).toBeTruthy();
+
+    // Click W+ to increase width
+    await wPlusBtn.click();
+
+    // Undo should be enabled (resize is an undoable action)
+    await expect(page.getByRole('button', { name: 'Undo' })).toBeEnabled();
+
+    // Status bar should reflect new dimensions
+    const statusAfter = await page.locator('#status-bar').textContent();
+    expect(statusAfter).not.toEqual(statusBefore);
+  });
+
+  test('font-wide resize buttons affect all glyphs', async ({ page }) => {
+    await loadFontFile(page, tinyMonoPath);
+    await page.waitForTimeout(200);
+
+    const allWPlus = page.getByRole('button', { name: 'All W+' });
+    const allHPlus = page.getByRole('button', { name: 'All H+' });
+
+    await expect(allWPlus).toBeEnabled();
+    await expect(allHPlus).toBeEnabled();
+
+    // Get initial dimensions from status
+    const statusBefore = await page.locator('#status-bar').textContent();
+
+    // Resize all glyphs width +1
+    await allWPlus.click();
+
+    await expect(page.getByRole('button', { name: 'Undo' })).toBeEnabled();
+
+    const statusAfter = await page.locator('#status-bar').textContent();
+    expect(statusAfter).not.toEqual(statusBefore);
+  });
+
+  test('resize buttons disabled when no file loaded', async ({ page }) => {
+    const wPlusBtn = page.getByRole('button', { name: 'W+', exact: true });
+    const allWPlus = page.getByRole('button', { name: 'All W+' });
+
+    await expect(wPlusBtn).toBeDisabled();
+    await expect(allWPlus).toBeDisabled();
+  });
+
+  test('select tool allows drag-to-move pixels', async ({ page }) => {
+    await loadFontFile(page, tinyMonoPath);
+    await page.waitForTimeout(200);
+
+    const canvas = page.locator('#glyph-canvas');
+    const box = await canvas.boundingBox();
+    expect(box).toBeTruthy();
+
+    // First draw a pixel
+    await canvas.click({ position: { x: box!.width * 0.3, y: box!.height * 0.3 } });
+    await expect(page.getByRole('button', { name: 'Undo' })).toBeEnabled();
+
+    // Switch to select tool
+    await page.getByRole('button', { name: 'Select' }).click();
+
+    // Create a selection by dragging
+    const startX = box!.width * 0.2;
+    const startY = box!.height * 0.2;
+    const endX = box!.width * 0.5;
+    const endY = box!.height * 0.5;
+
+    await page.mouse.move(box!.x + startX, box!.y + startY);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + endX, box!.y + endY);
+    await page.mouse.up();
+
+    // Now drag inside the selection to move pixels
+    const dragStartX = box!.width * 0.3;
+    const dragStartY = box!.height * 0.3;
+    const dragEndX = box!.width * 0.7;
+    const dragEndY = box!.height * 0.7;
+
+    await page.mouse.move(box!.x + dragStartX, box!.y + dragStartY);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + dragEndX, box!.y + dragEndY);
+    await page.mouse.up();
+
+    // The move should have created an undo-able action
+    await expect(page.getByRole('button', { name: 'Undo' })).toBeEnabled();
+  });
 });

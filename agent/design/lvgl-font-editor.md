@@ -170,7 +170,9 @@ Stateless functions that mutate a `Glyph`'s bitmap.
 - `togglePixel(glyph: Glyph, row: number, col: number): void`
 - `setPixel(glyph: Glyph, row: number, col: number, value: boolean): void`
 - `moveOffset(glyph: Glyph, dx: number, dy: number): void` — adjusts `offsetX`/`offsetY`.
-- `resizeFont(font: FontData, newBoxWidth: number, newBoxHeight: number): void` — resizes all glyphs, centering existing bitmap data.
+- `resizeGlyph(glyph: Glyph, newBoxWidth: number, newBoxHeight: number): void` — resizes a single glyph, anchored at top-left (adds/removes from right and bottom edges). No-op if either dimension < 1.
+- `resizeFont(font: FontData, newBoxWidth: number, newBoxHeight: number): void` — resizes all glyphs to the same absolute dimensions, anchored at top-left.
+- `resizeFontDelta(font: FontData, dw: number, dh: number): void` — adjusts all glyph dimensions by a delta, preserving individual size differences. Anchored at top-left. Clamps each glyph to minimum 1×1.
 - `boxSelect(glyph: Glyph, r1: number, c1: number, r2: number, c2: number): boolean[][]` — extracts a rectangular region.
 - `pastePixels(glyph: Glyph, pixels: boolean[][], startRow: number, startCol: number): void` — writes a rectangular region.
 - `movePixels(glyph: Glyph, selection: {r1: number, c1: number, r2: number, c2: number}, dr: number, dc: number): void` — moves selected pixels.
@@ -204,10 +206,13 @@ Stateless functions that mutate a `Glyph`'s bitmap.
   - Updates enabled/disabled state based on context.
 
 ### ToolbarHandlers (interface)
-Callbacks: `onOpen`, `onSave`, `onUndo`, `onRedo`, `onToolChange(tool: ToolMode)`.
+Callbacks: `onOpen`, `onSave`, `onUndo`, `onRedo`, `onToolChange(tool: ToolMode)`, `onGlyphResize(dw: number, dh: number)`, `onFontResize(dw: number, dh: number)`.
 
 ### ToolMode (enum)
 `DRAW` | `SELECT` | `MOVE`
+
+### Select-Drag Behavior
+In `SELECT` mode, clicking inside an existing selection starts a drag-move operation. Dragging moves the selected pixels by the drag delta. Clicking outside the selection starts a new selection. This eliminates the need to switch to `MOVE` mode for basic pixel movement. The `MOVE` mode is retained for backwards compatibility and also supports drag-to-move within a selection.
 
 ---
 

@@ -2,7 +2,7 @@ import { FontData, cloneGlyph } from './model/font-model.js';
 import { parseLvglFont } from './parser/lvgl-parser.js';
 import { serializeLvglFont } from './serializer/lvgl-serializer.js';
 import { CanvasRenderer } from './editor/canvas-renderer.js';
-import { togglePixel, setPixel, boxSelect, pastePixels, movePixels } from './editor/tools.js';
+import { togglePixel, setPixel, boxSelect, pastePixels, movePixels, resizeGlyph, resizeFontDelta } from './editor/tools.js';
 import { ClipboardStore } from './editor/clipboard.js';
 import { History } from './history/history.js';
 import { GlyphList } from './ui/glyph-list.js';
@@ -29,6 +29,8 @@ class App {
   private selectionStart: { row: number; col: number } | null = null;
   private selectionEnd: { row: number; col: number } | null = null;
   private isDragging = false;
+  private isDragMoving = false;
+  private dragMoveAnchor: { row: number; col: number } | null = null;
 
   constructor() {
     this.canvas = document.getElementById('glyph-canvas') as HTMLCanvasElement;
@@ -51,6 +53,8 @@ class App {
         onUndo: (): void => this.handleUndo(),
         onRedo: (): void => this.handleRedo(),
         onToolChange: (tool): void => { this.currentTool = tool; },
+        onGlyphResize: (dw, dh): void => this.handleGlyphResize(dw, dh),
+        onFontResize: (dw, dh): void => this.handleFontResize(dw, dh),
       },
     );
 
@@ -64,8 +68,8 @@ class App {
   private setupCanvasEvents(): void {
     this.canvas.addEventListener('mousedown', (e) => this.onCanvasMouseDown(e));
     this.canvas.addEventListener('mousemove', (e) => this.onCanvasMouseMove(e));
-    this.canvas.addEventListener('mouseup', () => this.onCanvasMouseUp());
-    this.canvas.addEventListener('mouseleave', () => this.onCanvasMouseUp());
+    this.canvas.addEventListener('mouseup', (e) => this.onCanvasMouseUp(e));
+    this.canvas.addEventListener('mouseleave', (e) => this.onCanvasMouseUp(e));
   }
 
   /**
@@ -202,6 +206,60 @@ class App {
   }
 
   /**
+   * Resizes the currently selected glyph by a delta.
+   */
+  private handleGlyphResize(dw: number, dh: number): void {
+    if (!this.font) return;
+    const glyph = this.font.glyphs[this.selectedGlyphIndex];
+    if (!glyph) return;
+
+    const newW = glyph.boxWidth + dw;
+    const newH = glyph.boxHeight + dh;
+    if (newW < 1 || newH < 1) return;
+
+    this.history.pushState(this.selectedGlyphIndex, glyph);
+    resizeGlyph(glyph, newW, newH);
+    this.selectionStart = null;
+    this.selectionEnd = null;
+    this.renderCurrentGlyph();
+    this.updateStatus();
+    this.updateToolbar();
+  }
+
+  /**
+   * Resizes all glyphs in the font by a delta, preserving individual size differences.
+   */
+  private handleFontResize(dw: number, dh: number): void {
+    if (!this.font) return;
+
+    // Push state for every glyph so undo restores all of them
+    for (let i = 0; i < this.font.glyphs.length; i++) {
+      this.history.pushState(i, this.font.glyphs[i]);
+    }
+
+    resizeFontDelta(this.font, dw, dh);
+    this.selectionStart = null;
+    this.selectionEnd = null;
+    this.renderCurrentGlyph();
+    this.glyphList.render(this.font.glyphs);
+    this.glyphList.setSelected(this.selectedGlyphIndex);
+    this.updateStatus();
+    this.updateToolbar();
+  }
+
+  /**
+   * Returns true if the given pixel coordinate is inside the current selection.
+   */
+  private isInsideSelection(row: number, col: number): boolean {
+    if (!this.selectionStart || !this.selectionEnd) return false;
+    const minR = Math.min(this.selectionStart.row, this.selectionEnd.row);
+    const maxR = Math.max(this.selectionStart.row, this.selectionEnd.row);
+    const minC = Math.min(this.selectionStart.col, this.selectionEnd.col);
+    const maxC = Math.max(this.selectionStart.col, this.selectionEnd.col);
+    return row >= minR && row <= maxR && col >= minC && col <= maxC;
+  }
+
+  /**
    * Handles mouse down on the canvas.
    */
   private onCanvasMouseDown(e: MouseEvent): void {
@@ -218,19 +276,36 @@ class App {
       this.renderCurrentGlyph();
       this.updateToolbar();
     } else if (this.currentTool === ToolMode.SELECT) {
-      this.selectionStart = pixel;
-      this.selectionEnd = pixel;
+      // If clicking inside an existing selection, start drag-move
+      if (this.isInsideSelection(pixel.row, pixel.col)) {
+        this.isDragMoving = true;
+        this.dragMoveAnchor = pixel;
+        this.history.pushState(this.selectedGlyphIndex, glyph);
+      } else {
+        // Start a new selection
+        this.isDragMoving = false;
+        this.dragMoveAnchor = null;
+        this.selectionStart = pixel;
+        this.selectionEnd = pixel;
+      }
     } else if (this.currentTool === ToolMode.MOVE) {
       if (this.selectionStart && this.selectionEnd) {
-        this.history.pushState(this.selectedGlyphIndex, glyph);
-        movePixels(glyph, {
-          r1: this.selectionStart.row, c1: this.selectionStart.col,
-          r2: this.selectionEnd.row, c2: this.selectionEnd.col,
-        }, pixel.row - this.selectionStart.row, pixel.col - this.selectionStart.col);
-        this.selectionStart = null;
-        this.selectionEnd = null;
-        this.renderCurrentGlyph();
-        this.updateToolbar();
+        // Start drag-move from MOVE tool as well
+        if (this.isInsideSelection(pixel.row, pixel.col)) {
+          this.isDragMoving = true;
+          this.dragMoveAnchor = pixel;
+          this.history.pushState(this.selectedGlyphIndex, glyph);
+        } else {
+          this.history.pushState(this.selectedGlyphIndex, glyph);
+          movePixels(glyph, {
+            r1: this.selectionStart.row, c1: this.selectionStart.col,
+            r2: this.selectionEnd.row, c2: this.selectionEnd.col,
+          }, pixel.row - this.selectionStart.row, pixel.col - this.selectionStart.col);
+          this.selectionStart = null;
+          this.selectionEnd = null;
+          this.renderCurrentGlyph();
+          this.updateToolbar();
+        }
       }
     }
   }
@@ -247,14 +322,26 @@ class App {
     if (this.currentTool === ToolMode.DRAW) {
       setPixel(glyph, pixel.row, pixel.col, !glyph.bitmap[pixel.row][pixel.col] || true);
       this.renderCurrentGlyph();
-    } else if (this.currentTool === ToolMode.SELECT) {
-      this.selectionEnd = pixel;
-      this.renderCurrentGlyph();
-      if (this.selectionStart && this.selectionEnd) {
-        this.renderer.renderSelection(
-          this.selectionStart.row, this.selectionStart.col,
-          this.selectionEnd.row, this.selectionEnd.col,
-        );
+    } else if (this.currentTool === ToolMode.SELECT || this.currentTool === ToolMode.MOVE) {
+      if (this.isDragMoving && this.dragMoveAnchor && this.selectionStart && this.selectionEnd) {
+        // Preview: render base glyph then render selection highlight at new offset
+        this.renderCurrentGlyph();
+        const dr = pixel.row - this.dragMoveAnchor.row;
+        const dc = pixel.col - this.dragMoveAnchor.col;
+        const newR1 = Math.min(this.selectionStart.row, this.selectionEnd.row) + dr;
+        const newC1 = Math.min(this.selectionStart.col, this.selectionEnd.col) + dc;
+        const newR2 = Math.max(this.selectionStart.row, this.selectionEnd.row) + dr;
+        const newC2 = Math.max(this.selectionStart.col, this.selectionEnd.col) + dc;
+        this.renderer.renderSelection(newR1, newC1, newR2, newC2);
+      } else if (!this.isDragMoving && this.currentTool === ToolMode.SELECT) {
+        this.selectionEnd = pixel;
+        this.renderCurrentGlyph();
+        if (this.selectionStart && this.selectionEnd) {
+          this.renderer.renderSelection(
+            this.selectionStart.row, this.selectionStart.col,
+            this.selectionEnd.row, this.selectionEnd.col,
+          );
+        }
       }
     }
   }
@@ -262,8 +349,42 @@ class App {
   /**
    * Handles mouse up on the canvas.
    */
-  private onCanvasMouseUp(): void {
+  private onCanvasMouseUp(e: MouseEvent): void {
+    if (this.isDragMoving && this.dragMoveAnchor && this.selectionStart && this.selectionEnd && this.font) {
+      const glyph = this.font.glyphs[this.selectedGlyphIndex];
+      const pixel = this.renderer.coordsToPixel(
+        e.clientX, e.clientY, glyph,
+      );
+      if (pixel) {
+        const dr = pixel.row - this.dragMoveAnchor.row;
+        const dc = pixel.col - this.dragMoveAnchor.col;
+        if (dr !== 0 || dc !== 0) {
+          movePixels(glyph, {
+            r1: this.selectionStart.row, c1: this.selectionStart.col,
+            r2: this.selectionEnd.row, c2: this.selectionEnd.col,
+          }, dr, dc);
+
+          // Update selection bounds to new position
+          const minR = Math.min(this.selectionStart.row, this.selectionEnd.row);
+          const maxR = Math.max(this.selectionStart.row, this.selectionEnd.row);
+          const minC = Math.min(this.selectionStart.col, this.selectionEnd.col);
+          const maxC = Math.max(this.selectionStart.col, this.selectionEnd.col);
+          this.selectionStart = { row: minR + dr, col: minC + dc };
+          this.selectionEnd = { row: maxR + dr, col: maxC + dc };
+        }
+      }
+      this.renderCurrentGlyph();
+      if (this.selectionStart && this.selectionEnd) {
+        this.renderer.renderSelection(
+          this.selectionStart.row, this.selectionStart.col,
+          this.selectionEnd.row, this.selectionEnd.col,
+        );
+      }
+      this.updateToolbar();
+    }
     this.isDragging = false;
+    this.isDragMoving = false;
+    this.dragMoveAnchor = null;
   }
 
   /**

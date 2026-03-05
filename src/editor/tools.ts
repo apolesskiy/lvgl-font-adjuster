@@ -25,29 +25,49 @@ export function moveOffset(glyph: Glyph, dx: number, dy: number): void {
 }
 
 /**
+ * Resizes a single glyph to newBoxWidth × newBoxHeight, anchored at top-left.
+ * New space is added/removed from the right and bottom edges.
+ * Returns without changes if new dimensions are less than 1.
+ */
+export function resizeGlyph(glyph: Glyph, newBoxWidth: number, newBoxHeight: number): void {
+  if (newBoxWidth < 1 || newBoxHeight < 1) return;
+
+  const oldBitmap = glyph.bitmap;
+  const newBitmap = createEmptyBitmap(newBoxWidth, newBoxHeight);
+
+  const copyRows = Math.min(glyph.boxHeight, newBoxHeight);
+  const copyCols = Math.min(glyph.boxWidth, newBoxWidth);
+
+  for (let r = 0; r < copyRows; r++) {
+    for (let c = 0; c < copyCols; c++) {
+      newBitmap[r][c] = oldBitmap[r]?.[c] ?? false;
+    }
+  }
+
+  glyph.bitmap = newBitmap;
+  glyph.boxWidth = newBoxWidth;
+  glyph.boxHeight = newBoxHeight;
+}
+
+/**
  * Resizes all glyphs in a font to newBoxWidth × newBoxHeight, centering existing data.
  */
 export function resizeFont(font: FontData, newBoxWidth: number, newBoxHeight: number): void {
   for (const glyph of font.glyphs) {
-    const oldBitmap = glyph.bitmap;
-    const newBitmap = createEmptyBitmap(newBoxWidth, newBoxHeight);
+    resizeGlyph(glyph, newBoxWidth, newBoxHeight);
+  }
+}
 
-    const rowOffset = Math.floor((newBoxHeight - glyph.boxHeight) / 2);
-    const colOffset = Math.floor((newBoxWidth - glyph.boxWidth) / 2);
-
-    for (let r = 0; r < glyph.boxHeight; r++) {
-      for (let c = 0; c < glyph.boxWidth; c++) {
-        const nr = r + rowOffset;
-        const nc = c + colOffset;
-        if (nr >= 0 && nr < newBoxHeight && nc >= 0 && nc < newBoxWidth) {
-          newBitmap[nr][nc] = oldBitmap[r]?.[c] ?? false;
-        }
-      }
-    }
-
-    glyph.bitmap = newBitmap;
-    glyph.boxWidth = newBoxWidth;
-    glyph.boxHeight = newBoxHeight;
+/**
+ * Resizes all glyphs in a font by a delta, preserving individual size differences.
+ * Each glyph's dimensions are adjusted by (dw, dh).
+ * Glyphs whose resulting dimensions would be less than 1 are clamped to 1.
+ */
+export function resizeFontDelta(font: FontData, dw: number, dh: number): void {
+  for (const glyph of font.glyphs) {
+    const newW = Math.max(1, glyph.boxWidth + dw);
+    const newH = Math.max(1, glyph.boxHeight + dh);
+    resizeGlyph(glyph, newW, newH);
   }
 }
 
